@@ -85,7 +85,7 @@ Um **metroidvania 2D** com movimento fluido, **pulo**, **wall slide/grab**, **da
 ## 👤 Autor & Créditos
 
 **Matheus Durigon Rodrigues** — *Desenvolvimento lógico, implementação de mecânicas (movimento, pulo, wall slide/grab, dash com gating, combate), montagem de cena teste*
-
+**Maria Eduarda Carvalho Dornelles** — *Implementação do mapa utilizando assets prontos, incluindo o pack **Platformer Tileset – PixelArt Grasslands**, além de ajustes visuais e integração de imagens adicionadas ao projeto.*
 ### Terceiros / Middleware
 - **DOTween (Demigiant)** — tweening/anim. auxiliares.  
 - **Cinemachine** — câmera virtual.  
