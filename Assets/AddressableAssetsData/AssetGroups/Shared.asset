@@ -41,7 +41,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 32b73340bf201c84b997941fab9f22b8
-    m_Address: Assets/Scenes/Samples/ThePaleMoonlight_Sample.unity
+    m_Address: ets/Scenes/Samples/ThePaleMoonlight_Sample.unityity
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
