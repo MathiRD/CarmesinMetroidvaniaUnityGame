@@ -126,6 +126,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c974597cc01d4dd4e9d3f1863f20d2bf
+    m_Address: Assets/Audio/SFX/SoundSword.wav
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c99a35d6525979c4cbf773db4f16780d
     m_Address: Assets/Graphics/Textures/Enviroment/Units
     m_ReadOnly: 0

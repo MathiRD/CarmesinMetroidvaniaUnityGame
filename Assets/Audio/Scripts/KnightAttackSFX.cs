@@ -17,7 +17,7 @@ public class KnightAttackSFX : MonoBehaviour
 
     private void OnEnable()
     {
-        
+        // Escuta o mesmo evento de ataque que o KnightCharacterController usa
         InputReader.instance.AttackEvent += OnAttack;
     }
 
