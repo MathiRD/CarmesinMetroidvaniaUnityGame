@@ -13004,6 +13004,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: GameplayController
       objectReference: {fileID: 0}
+    - target: {fileID: 8153216896755857823, guid: 11cd0fc535a25e447a5d9f0c58261dbb, type: 3}
+      propertyPath: m_TagString
+      value: Untagged
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

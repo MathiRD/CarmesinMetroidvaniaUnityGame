@@ -207,19 +207,28 @@ namespace Metroidvania.Characters.Knight
 
         private float _elapsedTime;
         private float _lastExitTime;
+        private float _originalGravityScale;
 
+        // Cooldown do dash
         public bool isInCooldown => Time.time - _lastExitTime < character.data.rollCooldown;
 
         public KnightRollState(KnightStateMachine machine) : base(machine) { }
 
         public override bool CanEnter()
         {
-            return character.collisionChecker.isGrounded && !machine.currentState.isCrouchState && character.dashAction.WasPerformedThisFrame() && !isInCooldown;
+            // Aqui não exigimos estar no chão, então o dash pode ser usado no ar.
+            // A entrada do dash continua amarrada ao input do frame atual.
+            return character.dashAction.WasPerformedThisFrame() && !isInCooldown;
         }
 
         public override void Enter(KnightStateBase previousState)
         {
-            _elapsedTime = 0;
+            _elapsedTime = 0f;
+
+            // Congela gravidade e trava o personagem na altura atual
+            _originalGravityScale = character.rb.gravityScale;
+            character.rb.gravityScale = 0f;
+            character.rb.linearVelocityY = 0f;
 
             character.SetColliderBounds(character.data.standColliderBounds);
             character.SwitchAnimation(KnightCharacterController.RollAnimHash, true);
@@ -228,27 +237,38 @@ namespace Metroidvania.Characters.Knight
 
         public override void Transition()
         {
-
-            if (_elapsedTime > character.data.rollDuration)
+            // Enquanto durar o dash, NÃO cai pro estado de queda.
+            if (_elapsedTime >= character.data.rollDuration)
+            {
                 machine.EnterDefaultState();
-            else
-                machine.fallState.TryEnter();
+            }
         }
 
         public override void Update()
         {
             _elapsedTime += Time.deltaTime;
-
         }
 
         public override void PhysicsUpdate()
         {
-            float curveMultiplier = character.data.rollHorizontalMoveCurve.Evaluate(_elapsedTime / character.data.rollDuration);
-            character.rb.Slide(new Vector2(character.data.rollSpeed * curveMultiplier * character.facingDirection, 0.0f), Time.deltaTime, character.data.slideMovement);
+            // Mantém movimento horizontal com curva, sem queda (y = 0)
+            float t = Mathf.Clamp01(_elapsedTime / character.data.rollDuration);
+            float curveMultiplier = character.data.rollHorizontalMoveCurve.Evaluate(t);
+
+            character.rb.Slide(
+                new Vector2(
+                    character.data.rollSpeed * curveMultiplier * character.facingDirection,
+                    0f
+                ),
+                Time.deltaTime,
+                character.data.slideMovement
+            );
         }
 
         public override void Exit()
         {
+            // Restaura a gravidade normal no fim do dash
+            character.rb.gravityScale = _originalGravityScale;
             _lastExitTime = Time.time;
         }
 
