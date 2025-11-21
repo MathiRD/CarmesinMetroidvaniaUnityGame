@@ -1,0 +1,10 @@
+*** Patched: KnightCharacterController.cs
+--- before
++++ after
+@@
+ private void HandleDash()
+ {
++    if (!PlayerAbilities.HasDash)
++        return;
+     stateMachine.currentState.HandleDash();
+ }
