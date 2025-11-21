@@ -1,4 +1,4 @@
-using DG.Tweening;
+﻿using DG.Tweening;
 using Metroidvania.Animations;
 using Metroidvania.Combat;
 using Metroidvania.Entities;
@@ -77,10 +77,133 @@ namespace Metroidvania.Characters.Knight
 
         public CharacterAttribute<float> lifeAttribute { get; private set; }
 
-        public InputAction crouchAction => InputReader.instance.inputActions.Gameplay.Crouch;
-        public InputAction dashAction => InputReader.instance.inputActions.Gameplay.Dash;
-        public InputAction attackAction => InputReader.instance.inputActions.Gameplay.Attack;
-        public InputAction jumpAction => InputReader.instance.inputActions.Gameplay.Jump;
+        // ========= INPUT READER & WRAPPERS =========
+
+        private InputReader _reader;
+
+        private static InputAction _dummyAction;
+        private static InputAction DummyAction
+        {
+            get
+            {
+                if (_dummyAction == null)
+                    _dummyAction = new InputAction();
+                return _dummyAction;
+            }
+        }
+
+        // Fallback InputActions (quando não existe InputReader.instance)
+        private InputAction _fallbackCrouchAction;
+        private InputAction _fallbackDashAction;
+        private InputAction _fallbackAttackAction;
+        private InputAction _fallbackJumpAction;
+        private bool _fallbackActionsEnabled;
+
+        private void EnsureFallbackActions()
+        {
+            if (_fallbackActionsEnabled)
+                return;
+
+            // Mapeia diretamente no novo Input System
+            _fallbackCrouchAction = new InputAction("Crouch", InputActionType.Button, "<Keyboard>/s");
+            _fallbackDashAction = new InputAction("Dash", InputActionType.Button, "<Keyboard>/c");
+            _fallbackAttackAction = new InputAction("Attack", InputActionType.Button, "<Keyboard>/x");
+            _fallbackJumpAction = new InputAction("Jump", InputActionType.Button, "<Keyboard>/z");
+
+            _fallbackCrouchAction.Enable();
+            _fallbackDashAction.Enable();
+            _fallbackAttackAction.Enable();
+            _fallbackJumpAction.Enable();
+
+            _fallbackActionsEnabled = true;
+
+            Debug.Log("KnightCharacterController: usando fallback InputActions (Z/X/C) porque não há InputReader.");
+        }
+
+        private void DisableFallbackActions()
+        {
+            if (!_fallbackActionsEnabled)
+                return;
+
+            if (_fallbackCrouchAction != null) _fallbackCrouchAction.Disable();
+            if (_fallbackDashAction != null) _fallbackDashAction.Disable();
+            if (_fallbackAttackAction != null) _fallbackAttackAction.Disable();
+            if (_fallbackJumpAction != null) _fallbackJumpAction.Disable();
+
+            _fallbackActionsEnabled = false;
+        }
+
+        public InputAction crouchAction
+        {
+            get
+            {
+                var reader = _reader != null ? _reader : InputReader.instance;
+                if (reader != null && reader.inputActions != null)
+                    return reader.inputActions.Gameplay.Crouch;
+
+                EnsureFallbackActions();
+                return _fallbackCrouchAction ?? DummyAction;
+            }
+        }
+
+        public InputAction dashAction
+        {
+            get
+            {
+                var reader = _reader != null ? _reader : InputReader.instance;
+                if (reader != null && reader.inputActions != null)
+                    return reader.inputActions.Gameplay.Dash;
+
+                EnsureFallbackActions();
+                return _fallbackDashAction ?? DummyAction;
+            }
+        }
+
+        public InputAction attackAction
+        {
+            get
+            {
+                var reader = _reader != null ? _reader : InputReader.instance;
+                if (reader != null && reader.inputActions != null)
+                    return reader.inputActions.Gameplay.Attack;
+
+                EnsureFallbackActions();
+                return _fallbackAttackAction ?? DummyAction;
+            }
+        }
+
+        public InputAction jumpAction
+        {
+            get
+            {
+                var reader = _reader != null ? _reader : InputReader.instance;
+                if (reader != null && reader.inputActions != null)
+                    return reader.inputActions.Gameplay.Jump;
+
+                EnsureFallbackActions();
+                return _fallbackJumpAction ?? DummyAction;
+            }
+        }
+
+        private void TrySubscribeInputReader()
+        {
+            if (_reader != null)
+                return;
+
+            if (InputReader.instance == null)
+                return;
+
+            _reader = InputReader.instance;
+
+            _reader.MoveEvent += ReadMoveInput;
+            _reader.JumpEvent += HandleJump;
+            _reader.DashEvent += HandleDash;
+            _reader.AttackEvent += HandleAttack;
+
+            Debug.Log("KnightCharacterController: conectado ao InputReader.", this);
+        }
+
+        // ========= FIM WRAPPERS =========
 
         private void Awake()
         {
@@ -91,7 +214,8 @@ namespace Metroidvania.Characters.Knight
 
             facingDirection = 1;
 
-            lifeAttribute = new CharacterAttribute<float>(data.lifeAttributeData, at => at.data.startValue + at.currentLevel * at.data.stepPerLevel);
+            lifeAttribute = new CharacterAttribute<float>(data.lifeAttributeData,
+                at => at.data.startValue + at.currentLevel * at.data.stepPerLevel);
 
             attackHits = new Collider2D[8];
             stateMachine = new KnightStateMachine(this);
@@ -99,28 +223,53 @@ namespace Metroidvania.Characters.Knight
 
         private void Start()
         {
-            CharacterStatusBar.instance.ConnectLife(lifeAttribute);
-            CharacterStatusBar.instance.SetLife(lifeAttribute.currentValue);
+            if (CharacterStatusBar.instance != null)
+            {
+                CharacterStatusBar.instance.ConnectLife(lifeAttribute);
+                CharacterStatusBar.instance.SetLife(lifeAttribute.currentValue);
+            }
+            else
+            {
+                Debug.LogWarning("KnightCharacterController: CharacterStatusBar.instance é nulo.");
+            }
         }
 
         private void OnEnable()
         {
-            InputReader.instance.MoveEvent += ReadMoveInput;
-            InputReader.instance.JumpEvent += HandleJump;
-            InputReader.instance.DashEvent += HandleDash;
-            InputReader.instance.AttackEvent += HandleAttack;
+            TrySubscribeInputReader();
+
+            if (_reader == null)
+            {
+                // Não tem InputReader na cena → habilita fallback com InputActions Z/X/C
+                EnsureFallbackActions();
+                Debug.LogWarning("KnightCharacterController: InputReader.instance é nulo. Usando fallback (setas + Z/X/C).");
+            }
         }
 
         private void OnDisable()
         {
-            InputReader.instance.MoveEvent -= ReadMoveInput;
-            InputReader.instance.JumpEvent -= HandleJump;
-            InputReader.instance.DashEvent -= HandleDash;
-            InputReader.instance.AttackEvent -= HandleAttack;
+            if (_reader != null)
+            {
+                _reader.MoveEvent -= ReadMoveInput;
+                _reader.JumpEvent -= HandleJump;
+                _reader.DashEvent -= HandleDash;
+                _reader.AttackEvent -= HandleAttack;
+                _reader = null;
+            }
+
+            DisableFallbackActions();
         }
 
         private void Update()
         {
+            // Se o InputReader "nascer" depois (ordem de execução diferente na build),
+            // aqui a gente conecta nos eventos.
+            if (_reader == null && InputReader.instance != null)
+                TrySubscribeInputReader();
+
+            // Fallback de teclado (setas + Z/X/C) para garantir movimento na build
+            ReadFallbackKeyboardInput();
+
             stateMachine.Update();
         }
 
@@ -135,8 +284,10 @@ namespace Metroidvania.Characters.Knight
 
         private void OnTriggerStay2D(Collider2D other)
         {
-            if (!other.TryGetComponent<ITouchHit>(out ITouchHit touchHit) || (!touchHit.ignoreInvincibility && isInvincible))
+            if (!other.TryGetComponent<ITouchHit>(out ITouchHit touchHit) ||
+                (!touchHit.ignoreInvincibility && isInvincible))
                 return;
+
             OnTakeHit(touchHit.OnHitCharacter(this));
         }
 
@@ -166,7 +317,8 @@ namespace Metroidvania.Characters.Knight
 
         public void FlipFacingDirection(float velocityX)
         {
-            if ((velocityX < 0 && facingDirection == 1) || (velocityX > 0 && facingDirection == -1))
+            if ((velocityX < 0 && facingDirection == 1) ||
+                (velocityX > 0 && facingDirection == -1))
                 Flip();
         }
 
@@ -214,11 +366,17 @@ namespace Metroidvania.Characters.Knight
 
         public void PerformAttack(KnightData.Attack attackData)
         {
-            rb.Slide(new Vector2(attackData.horizontalMoveOffset * facingDirection, 0), 1, data.slideMovement);
+            rb.Slide(new Vector2(attackData.horizontalMoveOffset * facingDirection, 0),
+                1, data.slideMovement);
 
             var contactFilter = new ContactFilter2D();
             contactFilter.SetLayerMask(data.hittableLayer);
-            int hitCount = Physics2D.OverlapBox(rb.position + (attackData.triggerCollider.center * transform.localScale), attackData.triggerCollider.size, 0, contactFilter, attackHits);
+            int hitCount = Physics2D.OverlapBox(
+                rb.position + (attackData.triggerCollider.center * transform.localScale),
+                attackData.triggerCollider.size,
+                0,
+                contactFilter,
+                attackHits);
 
             if (hitCount <= 0)
                 return;
@@ -235,14 +393,16 @@ namespace Metroidvania.Characters.Knight
         public void TryDropPlatform()
         {
             foreach (var collision in collisionChecker.collisions)
-                if (collision.Key.usedByEffector && collision.Key.TryGetComponent(out PlatformEffector2D _))
+                if (collision.Key.usedByEffector &&
+                    collision.Key.TryGetComponent(out PlatformEffector2D _))
                     DropPlatform(collision.Key);
         }
 
         public void DropPlatform(Collider2D platform)
         {
             Physics2D.IgnoreCollision(_collider, platform);
-            DOVirtual.DelayedCall(.25f, () => Physics2D.IgnoreCollision(_collider, platform, false));
+            DOVirtual.DelayedCall(.25f,
+                () => Physics2D.IgnoreCollision(_collider, platform, false));
         }
 
         private void ReadMoveInput(float move) => horizontalMove = move;
@@ -264,6 +424,32 @@ namespace Metroidvania.Characters.Knight
         {
             stateMachine.currentState.HandleAttack();
         }
+
+        // ========== FALLBACK: SETAS + Z/X/C ==========
+        private void ReadFallbackKeyboardInput()
+        {
+            float move = 0f;
+
+            if (Input.GetKey(KeyCode.LeftArrow))
+                move = -1f;
+            else if (Input.GetKey(KeyCode.RightArrow))
+                move = 1f;
+
+            ReadMoveInput(move);
+
+            // Z = PULAR
+            if (Input.GetKeyDown(KeyCode.Z))
+                HandleJump();
+
+            // X = BATER
+            if (Input.GetKeyDown(KeyCode.X))
+                HandleAttack();
+
+            // C = DASH
+            if (Input.GetKeyDown(KeyCode.C))
+                HandleDash();
+        }
+        // ========== FIM FALLBACK ==========
 
         public override void OnTakeHit(EntityHitData hitData)
         {
@@ -291,17 +477,21 @@ namespace Metroidvania.Characters.Knight
 
             FocusCameraOnThis();
 
+            if (transitionData.gameData != null)
+            {
+                if (transitionData.gameData.ch_knight_died)
+                {
+                    transitionData.gameData.ch_knight_died = false;
+                    lifeAttribute.currentValue = transitionData.gameData.ch_knight_life;
+                }
+                else
+                {
+                    lifeAttribute.currentValue = transitionData.gameData.ch_knight_life;
+                }
 
-            if (transitionData.gameData.ch_knight_died)
-            {
-                transitionData.gameData.ch_knight_died = false;
-                lifeAttribute.currentValue = transitionData.gameData.ch_knight_life;
+                if (CharacterStatusBar.instance != null)
+                    CharacterStatusBar.instance.SetLife(lifeAttribute.currentValue);
             }
-            else
-            {
-                lifeAttribute.currentValue = transitionData.gameData.ch_knight_life;
-            }
-            CharacterStatusBar.instance.SetLife(lifeAttribute.currentValue);
 
             if (spawnPoint.isHorizontalDoor)
                 stateMachine.fakeWalkState.EnterFakeWalk(data.fakeWalkOnSceneTransitionTime);
@@ -309,6 +499,9 @@ namespace Metroidvania.Characters.Knight
 
         public override void BeforeUnload(SceneLoader.SceneUnloadData unloadData)
         {
+            if (unloadData.gameData == null)
+                return;
+
             unloadData.gameData.ch_knight_life = lifeAttribute.currentValue;
             unloadData.gameData.ch_knight_died = isDied;
         }
@@ -332,14 +525,16 @@ namespace Metroidvania.Characters.Knight
 
             if (data.crouchColliderBounds.drawGizmos)
                 drawer.SetColor(GizmosColor.instance.knight.feet)
-                    .DrawWireSquare(position + (data.crouchHeadRect.min * scale), data.crouchHeadRect.size);
+                    .DrawWireSquare(position + (data.crouchHeadRect.min * scale),
+                        data.crouchHeadRect.size);
 
             void DrawAttack(KnightData.Attack attack)
             {
                 if (!attack.drawGizmos)
                     return;
 
-                drawer.DrawWireSquare(position + (attack.triggerCollider.center * scale), attack.triggerCollider.size);
+                drawer.DrawWireSquare(position + (attack.triggerCollider.center * scale),
+                    attack.triggerCollider.size);
             }
         }
 #endif

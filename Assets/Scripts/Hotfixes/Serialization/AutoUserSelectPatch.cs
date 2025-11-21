@@ -11,7 +11,15 @@ namespace Metroidvania.Hotfixes.Serialization
             try
             {
                 var dm = DataManager.instance;
+
+                if (dm == null)
+                {
+                    Debug.LogWarning("[Hotfix] AutoUserSelectPatch: DataManager.instance é nulo. Seguindo sem selecionar usuário.");
+                    return;
+                }
+
                 dm.Initialize();
+
                 if (dm.selectedUserId == -1)
                     dm.ChangeSelectedUser(0);
             }

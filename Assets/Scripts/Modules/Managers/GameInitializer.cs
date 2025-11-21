@@ -1,4 +1,3 @@
-using Metroidvania.SceneManagement;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,35 +8,48 @@ namespace Metroidvania.Settings
 {
     public class GameInitializer : MonoBehaviour
     {
+        // Esse campo pode continuar no Inspector, mas não será mais usado
         [Header("Scenes")]
-        [SerializeField] private AssetReferenceSceneChannel m_mainMenuSceneRef;
+        [SerializeField] private AssetReference m_mainMenuSceneRef;
 
         private IEnumerator Start()
         {
+            // Se a ref não for válida, só loga e segue a vida.
             if (!m_mainMenuSceneRef.RuntimeKeyIsValid())
             {
-                Debug.LogError("Error on game initialization. Exiting the application.");
-                Application.Quit();
+                Debug.LogWarning("GameInitializer: m_mainMenuSceneRef inválido. Continuando sem carregar cena via Addressables.");
             }
 
+            // Carrega Scriptable Singletons (DataManager etc.), se existirem
             AsyncOperationHandle<IList<ScriptableObject>> scriptableSingletonsHandle =
-                Addressables.LoadAssetsAsync<ScriptableObject>("Scriptable Singleton", singleton =>
-                {
-                    if (singleton is IInitializableSingleton initializableSingleton)
-                        initializableSingleton.Initialize();
+                Addressables.LoadAssetsAsync<ScriptableObject>(
+                    "Scriptable Singleton",
+                    singleton =>
+                    {
+                        if (singleton is IInitializableSingleton initializableSingleton)
+                            initializableSingleton.Initialize();
 
-                    var type = singleton.GetType();
-                    var setInstanceMethod = type.BaseType.GetMethod("SetInstance", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                    setInstanceMethod.Invoke(null, new object[] { singleton });
-                });
+                        var type = singleton.GetType();
+                        var setInstanceMethod = type.BaseType.GetMethod(
+                            "SetInstance",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
 
+                        setInstanceMethod?.Invoke(null, new object[] { singleton });
+                    });
+
+            // Carrega Persistent Singletons (InputReader, gerentes, etc.), se tiver
             AsyncOperationHandle<IList<GameObject>> persistentSingletonsHandle =
-                Addressables.LoadAssetsAsync<GameObject>("Persistent Singleton", persistentSingleton => Instantiate(persistentSingleton));
+                Addressables.LoadAssetsAsync<GameObject>(
+                    "Persistent Singleton",
+                    go => Instantiate(go));
 
+            // Espera terminar
             yield return persistentSingletonsHandle;
             yield return scriptableSingletonsHandle;
 
-            yield return SceneLoader.instance.LoadSceneWithoutTransition(m_mainMenuSceneRef, SceneLoader.SceneTransitionData.MainMenu);
+            // IMPORTANTE: NÃO chama mais SceneLoader aqui.
+            // Nada de LoadSceneAsync, nada de LoadSceneWithoutTransition.
+            // A cena que já está carregada (a da build) continua rodando.
         }
     }
 

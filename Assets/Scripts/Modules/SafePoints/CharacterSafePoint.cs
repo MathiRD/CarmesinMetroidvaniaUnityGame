@@ -25,6 +25,16 @@ namespace Metroidvania.Characters.SafePoints
 
         private void OnTriggerEnter2D(Collider2D other)
         {
+            var knight = other.GetComponent<Knight.KnightCharacterController>();
+            if (knight == null)
+                return;
+
+            if (Metroidvania.Serialization.DataManager.instance == null)
+            {
+                Debug.LogWarning("CharacterSafePoint: DataManager.instance nulo; ignorando save neste build.");
+                return;
+            }
+
             if (other.transform.CompareTag("Player") && other.TryGetComponent<CharacterBase>(out CharacterBase character))
             {
                 GameData gameData = DataManager.instance.gameData;

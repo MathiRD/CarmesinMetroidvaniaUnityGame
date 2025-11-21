@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -49,10 +50,24 @@ namespace Metroidvania.Entities
         public bool hasFocusedTarget { get; private set; } = false;
         public EntityTarget focusedTarget { get; private set; } = null;
 
+        // buffer para fallback (evitar GC constante)
+        private static readonly List<EntityTarget> _fallbackTargets = new List<EntityTarget>(16);
+
         private void Start()
         {
             t = transform;
-            EntitiesManager.instance.targetReleased.OnEventRaise += OnTargetRemoved;
+
+            // Protegido contra manager nulo
+            var mgr = EntitiesManager.instance;
+            if (mgr != null && mgr.targetReleased != null)
+            {
+                mgr.targetReleased.OnEventRaise += OnTargetRemoved;
+            }
+            else
+            {
+                Debug.LogWarning("EntityTargetFinder: EntitiesManager.instance nulo ou sem targetReleased. " +
+                                 "Usando fallback com FindObjectsOfType na cena.");
+            }
         }
 
         private void LateUpdate()
@@ -69,7 +84,11 @@ namespace Metroidvania.Entities
 
         private void OnDestroy()
         {
-            EntitiesManager.instance.targetReleased.OnEventRaise -= OnTargetRemoved;
+            var mgr = EntitiesManager.instance;
+            if (mgr != null && mgr.targetReleased != null)
+            {
+                mgr.targetReleased.OnEventRaise -= OnTargetRemoved;
+            }
         }
 
         public void UpdateVisibleTargets()
@@ -77,18 +96,50 @@ namespace Metroidvania.Entities
             int i = 0;
             bool lostFocusedTarget = hasFocusedTarget;
 
-            if (_lockedTarget)
+            // Começa com alvo travado, se existir
+            if (_lockedTarget && focusedTarget != null)
             {
                 lostFocusedTarget = false;
                 visibleTargets[0] = focusedTarget;
                 i++;
             }
 
-            foreach (EntityTarget target in EntitiesManager.instance.targets)
+            // --- escolhe a fonte dos targets (manager OU fallback) ---
+            IEnumerable<EntityTarget> sourceTargets = null;
+            var mgr = EntitiesManager.instance;
+
+            if (mgr != null && mgr.targets != null && mgr.targets.Count > 0)
             {
+                sourceTargets = mgr.targets;
+            }
+            else
+            {
+                // Fallback: procura todos EntityTarget ativos na cena
+                _fallbackTargets.Clear();
+                _fallbackTargets.AddRange(FindObjectsOfType<EntityTarget>());
+                sourceTargets = _fallbackTargets;
+
+                // Log só uma vez por cena seria o ideal, mas esse aqui já ajuda o debug
+                // Debug.LogWarning("EntityTargetFinder: usando fallback FindObjectsOfType<EntityTarget>().");
+            }
+
+            foreach (EntityTarget target in sourceTargets)
+            {
+                if (target == null)
+                    continue;
+
+                // se por acaso o próprio inimigo também tiver EntityTarget, ignora ele mesmo
+                if (target.gameObject == gameObject)
+                    continue;
+
                 float targetDistance = Vector2.Distance(position, target.position);
-                if (targetDistance < viewRadius && IsInsideAngleView(target.position) && !IsObstructed(target.position))
+                if (targetDistance <= viewRadius &&
+                    IsInsideAngleView(target.position) &&
+                    !IsObstructed(target.position))
                 {
+                    if (i >= visibleTargets.Length)
+                        break; // evita overflow
+
                     visibleTargets[i] = target;
                     if (target == focusedTarget)
                         lostFocusedTarget = false;
@@ -98,12 +149,16 @@ namespace Metroidvania.Entities
 
             visibleTargetsCount = i;
 
+            // se o alvo focado anterior saiu da lista, desfoca
             if (lostFocusedTarget)
                 UnfocusTarget();
         }
 
         public void FocusTarget(EntityTarget target, bool force = false)
         {
+            if (target == null)
+                return;
+
             if (_lockedTarget && !force)
                 return;
 
@@ -135,10 +190,13 @@ namespace Metroidvania.Entities
         public EntityTarget GetNearestVisibleTarget()
         {
             EntityTarget nearest = null;
-            float nearestDistance = int.MaxValue;
+            float nearestDistance = float.MaxValue;
+
             for (int i = 0; i < visibleTargetsCount; i++)
             {
                 EntityTarget target = visibleTargets[i];
+                if (target == null) continue;
+
                 float distance = (target.position - position).sqrMagnitude;
                 if (distance < nearestDistance)
                 {
@@ -164,13 +222,13 @@ namespace Metroidvania.Entities
                 return;
 
             _lockedTarget = false;
-            TargetUnlocked.Invoke();
+            TargetUnlocked?.Invoke();
         }
 
         public void FocusInNearest(bool force)
         {
             EntityTarget nearest = GetNearestVisibleTarget();
-            if (nearest)
+            if (nearest != null)
                 FocusTarget(nearest, force);
         }
 
@@ -180,7 +238,7 @@ namespace Metroidvania.Entities
             Vector2 transformUp = new Vector2(rotation.w * -rotZ, 1f - (rotation.z * rotZ));
             Vector2 targetDir = (targetPosition - position).normalized;
 
-            return Vector2.Angle(transformUp, targetDir) < viewAngle * .5f;
+            return Vector2.Angle(transformUp, targetDir) < viewAngle * 0.5f;
         }
 
         public bool IsObstructed(Vector2 targetPosition)
@@ -207,9 +265,12 @@ namespace Metroidvania.Entities
 
         private void RemoveTargetAt(int index)
         {
-            for (int i = index; i < visibleTargetsCount; i++)
+            for (int i = index; i < visibleTargetsCount - 1; i++)
                 visibleTargets[i] = visibleTargets[i + 1];
+
+            visibleTargets[visibleTargetsCount - 1] = null;
             visibleTargetsCount--;
+            if (visibleTargetsCount < 0) visibleTargetsCount = 0;
         }
 
 #if UNITY_EDITOR
@@ -231,14 +292,19 @@ namespace Metroidvania.Entities
             for (int i = 0; i < visibleTargetsCount; i++)
             {
                 EntityTarget target = visibleTargets[i];
-                gizmos.SetColor(target != focusedTarget ? GizmosColor.instance.entities.targetFinderVisibleTargetsLine : Color.blue);
+                if (target == null) continue;
+
+                gizmos.SetColor(target != focusedTarget
+                    ? GizmosColor.instance.entities.targetFinderVisibleTargetsLine
+                    : Color.blue);
                 gizmos.DrawLine(target.position, position);
             }
 
             Vector2 DirFromAngle(float angleInDegrees)
             {
                 angleInDegrees -= rotationZ;
-                return new Vector2(Mathf.Sin(angleInDegrees * Mathf.Deg2Rad), Mathf.Cos(angleInDegrees * Mathf.Deg2Rad));
+                return new Vector2(Mathf.Sin(angleInDegrees * Mathf.Deg2Rad),
+                                   Mathf.Cos(angleInDegrees * Mathf.Deg2Rad));
             }
         }
 #endif

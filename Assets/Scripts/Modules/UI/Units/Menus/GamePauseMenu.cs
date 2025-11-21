@@ -19,14 +19,22 @@ namespace Metroidvania.UI.Menus
 
         private void OnEnable()
         {
-            InputReader.instance.MenuCloseEvent += PerformMenuClose;
-            InputReader.instance.PauseEvent += PauseGame;
+            if (InputReader.instance == null)
+            {
+                Debug.LogWarning("GamePauseMenu: InputReader.instance é nulo. Desabilitando menu de pause neste build.");
+                enabled = false;
+                return;
+            }
+
+            // ... resto do seu código atual de OnEnable
         }
 
         private void OnDisable()
         {
-            InputReader.instance.PauseEvent -= PauseGame;
-            InputReader.instance.MenuCloseEvent -= PerformMenuClose;
+            if (InputReader.instance == null)
+                return;
+
+            // ... resto do seu código atual de OnDisable
         }
 
         public void PauseGame()

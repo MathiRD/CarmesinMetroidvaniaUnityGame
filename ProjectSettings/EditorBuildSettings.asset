@@ -6,9 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/Initialize.unity
-    guid: 91a7aaeb781f72b4f825a30c7b0afb12
-  - enabled: 0
     path: Assets/Scenes/Samples/ThePaleMoonlight_Sample.unity
     guid: 32b73340bf201c84b997941fab9f22b8
   m_configObjects:

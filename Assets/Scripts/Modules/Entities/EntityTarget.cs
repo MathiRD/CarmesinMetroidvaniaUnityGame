@@ -2,33 +2,56 @@
 
 namespace Metroidvania.Entities
 {
+    /// <summary>
+    /// Marca um objeto como alvo “rastreável” pelos inimigos.
+    /// </summary>
     public class EntityTarget : MonoBehaviour
     {
-        /// <summary>Cached transform of this object</summary>
+        /// <summary>Transform associado a este alvo (sempre tenta se auto-corrigir).</summary>
         public Transform t { get; private set; }
 
-        [SerializeField] private Vector2 m_offset;
+        /// <summary>Posição 2D segura (nunca lança NullReference; se der ruim, devolve Vector2.zero).</summary>
+        public Vector2 position
+        {
+            get
+            {
+                // Garante que t esteja sempre setado
+                if (t == null)
+                    t = transform;
 
-        public Vector2 position => (Vector2)t.position + (m_offset * t.localScale);
+                if (t == null)
+                    return Vector2.zero;
+
+                return (Vector2)t.position;
+            }
+        }
 
         private void Awake()
         {
-            EntitiesManager.instance.AddTarget(this);
+            // Cache inicial
             t = transform;
         }
 
-        private void OnDestroy()
+        private void OnEnable()
         {
-            EntitiesManager.instance.RemoveTarget(this);
+            if (t == null)
+                t = transform;
+
+            // Registra no EntitiesManager se existir (editor ou build)
+            var mgr = EntitiesManager.instance;
+            if (mgr != null)
+            {
+                mgr.AddTarget(this);
+            }
         }
 
-#if UNITY_EDITOR
-        private void OnDrawGizmosSelected()
+        private void OnDisable()
         {
-            new GizmosDrawer()
-                .SetColor(GizmosColor.instance.entities.targetPosition)
-                .DrawWireDisc((Vector2)transform.position + (m_offset * transform.localScale), 0.1f);
+            var mgr = EntitiesManager.instance;
+            if (mgr != null)
+            {
+                mgr.RemoveTarget(this);
+            }
         }
-#endif
     }
 }
