@@ -88,6 +88,10 @@ Um **metroidvania 2D** com movimento fluido, **pulo**, **wall slide/grab**, **da
 
 **Maria Eduarda Carvalho Dornelles** — *Implementação do mapa utilizando assets prontos, incluindo o pack **Platformer Tileset – PixelArt Grasslands**, além de ajustes visuais e integração de imagens adicionadas ao projeto.*
 
+**Erick De Nardi** — *Realizado toda a parte do comercial, tabela de valores, preços, orçamentos, estratégias de mercados e pitch de apresentação.*
+
+**João Inácio** — *Implementação do som do jogo, tratamento de áudio e sfx's, ajuste de som e trilha sonora*
+
 ### Terceiros / Middleware
 - **DOTween (Demigiant)** — tweening/anim. auxiliares.  
 - **Cinemachine** — câmera virtual.  
